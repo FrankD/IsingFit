@@ -1,5 +1,5 @@
 IsingFit <-
-  function(x, family='binomial', AND = TRUE, gamma = 0.25, plot = TRUE, progressbar = TRUE, lowerbound.lambda = NA,...){
+  function(x, family='binomial', sample_weights=NULL, AND = TRUE, gamma = 0.25, plot = TRUE, progressbar = TRUE, lowerbound.lambda = NA,...){
     t0 <- Sys.time()
     xx <- x
     if (family!='binomial') 
@@ -14,6 +14,15 @@ IsingFit <-
     #   if(minclass<=1) res=0 else res=1
     #   return(res)
     # }
+    
+    ## No weighting corresponds to weighting everything by 1
+    if(is.null(sample_weights)) {
+      sample_weights <- rep(1, nrow(xx))
+    } else {
+      # Make sure that sample weights are between 0 and 1.
+      if(any(sample_weights < 0)) stop('Negative sample weights are not allowed.')
+      sample_weights = sample_weights/max(sample_weights)
+    }
     
     allowedNodes <- function(nodeValues) {
       nodeValues = as.factor(nodeValues)
@@ -41,7 +50,7 @@ IsingFit <-
     intercepts <- betas <- lambdas <- list(vector,nvar)
     nlambdas <- rep(0,nvar)
     for (i in 1: nvar){
-      a <- glmnet(x[,-i], x[,i], family = family)
+      a <- glmnet(x[,-i], x[,i], family = family, weights=sample_weights)
       intercepts[[i]] <- a$a0
       betas[[i]] <- a$beta
       lambdas[[i]] <- a$lambda
@@ -79,7 +88,9 @@ IsingFit <-
       if (progressbar==TRUE) setTxtProgressBar(pb, i)
     }
     
-    logl_Msum <- colSums( logl_M , 1, na.rm=FALSE )
+    
+    logl_Msum <- colSums( logl_M * array(sample_weights, dim=dim(logl_M)), 
+                          1, na.rm=FALSE )
     if (progressbar==TRUE) close(pb)
     sumlogl <- logl_Msum 
     sumlogl[sumlogl==0]=NA
